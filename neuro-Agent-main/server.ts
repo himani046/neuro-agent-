@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -145,6 +146,28 @@ async function startServer() {
   const PORT = process.env.PORT || 3000;
 
   app.use(express.json({ limit: '10mb' }));
+  const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+  // Google Cloud Speech-to-Text. Audio is processed only after explicit submission.
+  app.post('/api/transcribe', audioUpload.single('audio'), async (req, res) => {
+    try {
+      const apiKey = process.env.GOOGLE_CLOUD_SPEECH_API_KEY;
+      if (!apiKey) return res.status(503).json({ error: 'Google transcription is not configured. Set GOOGLE_CLOUD_SPEECH_API_KEY on the server.' });
+      if (!req.file?.buffer?.length) return res.status(400).json({ error: 'Audio file is required.' });
+      if (!String(req.file.mimetype || '').includes('webm')) return res.status(415).json({ error: 'Please upload a WebM/Opus recording from the consultation recorder.' });
+      const response = await fetch('https://speech.googleapis.com/v1/speech:recognize?key=' + encodeURIComponent(apiKey), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: { encoding: 'WEBM_OPUS', languageCode: 'en-IN', alternativeLanguageCodes: ['hi-IN'], enableAutomaticPunctuation: true, model: 'latest_long' }, audio: { content: req.file.buffer.toString('base64') } })
+      });
+      const payload: any = await response.json();
+      if (!response.ok) return res.status(502).json({ error: payload?.error?.message || 'Google Cloud Speech-to-Text request failed.' });
+      const transcript = (payload.results || []).map((item: any) => item.alternatives?.[0]?.transcript || '').filter(Boolean).join('\\n');
+      return res.json({ success: true, provider: 'google-cloud-speech-to-text', transcript, languageMode: 'en-IN + hi-IN', results: payload.results || [] });
+    } catch (error: any) {
+      console.error('[Transcription] Request failed:', error?.message || error);
+      return res.status(500).json({ error: 'Transcription failed. Check server configuration and try again.' });
+    }
+  });
 
   // In-memory patient database initialized with benchmark cases
   const activePatientDatabase: ClinicalCaseInput[] = [...BENCHMARK_CLINICAL_CASES];
