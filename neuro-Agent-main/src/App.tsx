@@ -13,6 +13,7 @@ import { JsonSchemaViewer } from './components/JsonSchemaViewer';
 import { CustomCaseModal } from './components/CustomCaseModal';
 import { ThreeBarDrawer } from './components/ThreeBarDrawer';
 import { LiveDoctorChat } from './components/LiveDoctorChat';
+import { ConsultationRecorder } from './components/ConsultationRecorder';
 import { RefreshCw, CheckCircle2, AlertCircle, MessageSquare } from 'lucide-react';
 
 export default function App() {
@@ -283,6 +284,8 @@ export default function App() {
           </span>
         </div>
       )}
+
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-5"><ConsultationRecorder patientId={currentCase.patient_id} patientName={currentCase.patient_name} onTranscript={(transcript) => { const updated = { ...currentCase, transcript }; setCases(prev => prev.map(c => c.case_id === currentCase.case_id ? updated : c)); setActiveSourceTab('transcript'); setStatusMessage({ text: 'Reviewed transcript added to the active encounter. Run reconciliation to refresh the clinical output.', type: 'success' }); }} /></div>
 
       {/* Main Dual-Panel Workspace (Complete Sharp Rectangles) */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
